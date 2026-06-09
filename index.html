@@ -36,7 +36,9 @@
   <button id="fminus">A−</button>
   <button id="fplus">A＋</button>
   <button id="reset">配置リセット</button>
-  <span class="hint">ラベルもドット（指す点）もドラッグで移動／ダブルクリックで文字編集／右上の×で削除</span>
+  <button id="changeimg">写真を変更</button>
+  <input type="file" id="file" accept="image/*" hidden>
+  <span class="hint">写真を変更すると画像に合わせてラベルが比例配置／ドラッグで移動／ダブルクリックで文字編集／右上の×で削除</span>
 </div>
 <div id="wrap">
   <div id="stage">
@@ -52,13 +54,20 @@ let FONT = 27;          // base font in natural px
 const PAD_Y = 12, PAD_X = 18;  // padding in natural px
 let anns = [];
 let scale = 1, NW = 0, NH = 0;
+let DEF_W = 0, DEF_H = 0;   // dimensions the default label coords were authored for
 
 const photo = document.getElementById('photo');
 const stage = document.getElementById('stage');
 const svg   = document.getElementById('svg');
 
 function clone(a){ return JSON.parse(JSON.stringify(a)); }
-function loadDefaults(){ anns = clone(DEFAULTS).map((a,i)=>({...a, id:i+'_'+Date.now()})); buildDOM(); }
+function loadDefaults(){
+  const fx = DEF_W ? NW/DEF_W : 1, fy = DEF_H ? NH/DEF_H : 1;
+  anns = clone(DEFAULTS).map((a,i)=>({
+    text:a.text, bx:a.bx*fx, by:a.by*fy, tx:a.tx*fx, ty:a.ty*fy, id:i+'_'+Date.now()
+  }));
+  buildDOM();
+}
 
 function buildDOM(){
   // remove old
@@ -185,11 +194,33 @@ document.getElementById('add').onclick=()=>{
   buildDOM();
 };
 document.getElementById('reset').onclick=loadDefaults;
-document.getElementById('fplus').onclick=()=>{ FONT=Math.min(60,FONT+2); layout(); };
-document.getElementById('fminus').onclick=()=>{ FONT=Math.max(12,FONT-2); layout(); };
+document.getElementById('fplus').onclick=()=>{ FONT=Math.min(120,FONT+2); layout(); };
+document.getElementById('fminus').onclick=()=>{ FONT=Math.max(8,FONT-2); layout(); };
+
+const fileInput=document.getElementById('file');
+document.getElementById('changeimg').onclick=()=>fileInput.click();
+fileInput.onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const oldNW=NW, oldNH=NH;
+    photo.onload=()=>{
+      const nw=photo.naturalWidth, nh=photo.naturalHeight;
+      const fx = oldNW ? nw/oldNW : 1, fy = oldNH ? nh/oldNH : 1;
+      NW=nw; NH=nh;
+      FONT = FONT * fx;                      // keep labels proportional to new image
+      anns.forEach(a=>{ a.bx*=fx; a.by*=fy; a.tx*=fx; a.ty*=fy; });
+      layout();
+    };
+    photo.src=ev.target.result;
+  };
+  r.readAsDataURL(f);
+  fileInput.value='';
+};
+
 window.addEventListener('resize', layout);
 
-function start(){ NW=photo.naturalWidth; NH=photo.naturalHeight; loadDefaults(); }
+function start(){ NW=photo.naturalWidth; NH=photo.naturalHeight; if(!DEF_W){ DEF_W=NW; DEF_H=NH; } loadDefaults(); }
 if(photo.complete && photo.naturalWidth){ start(); } else { photo.onload=start; }
 </script>
 </body>
